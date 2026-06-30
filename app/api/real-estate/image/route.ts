@@ -8,6 +8,8 @@ const USEAPI_ROOT = 'https://api.useapi.net/v1/google-flow';
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+type ImageModel = 'nano-banana-2' | 'imagen-4';
+
 function jsonError(message: string, status = 400, raw?: unknown) {
   return NextResponse.json({ ok: false, message, raw }, { status });
 }
@@ -47,14 +49,14 @@ function extractGeneratedImage(result: any) {
   return { mediaGenerationId, imageUrl };
 }
 
-function softenPrompt(prompt: string) {
+function flowStylePrompt(prompt: string) {
   return prompt
+    .replace(/giữ nguyên tối đa/gi, 'keep the same general look of')
+    .replace(/nhận diện/gi, 'facial appearance')
     .replace(/tuyệt đối/gi, '')
-    .replace(/không được/gi, 'tránh')
-    .replace(/nhận diện/gi, 'đặc điểm gương mặt')
-    .replace(/giữ nguyên tối đa/gi, 'giữ gần giống')
-    .replace(/Không/gi, 'Tránh')
-    .replace(/không/gi, 'tránh')
+    .replace(/không được/gi, 'avoid')
+    .replace(/Không/gi, 'Avoid')
+    .replace(/không/gi, 'avoid')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -100,17 +102,17 @@ async function uploadImage(file: File, token: string, email?: string) {
 
 async function callImageGeneration(args: {
   token: string;
-  email?: string;
   prompt: string;
-  model: 'nano-banana-2' | 'imagen-4';
+  model: ImageModel;
+  aspectRatio: '9:16' | 'auto';
   portraitId: string;
   propertyId: string;
+  label: string;
 }) {
   const body = {
-    email: args.email || undefined,
     model: args.model,
     prompt: args.prompt,
-    aspectRatio: '9:16',
+    aspectRatio: args.aspectRatio,
     count: 1,
     reference_1: args.portraitId,
     reference_2: args.propertyId,
@@ -134,7 +136,7 @@ async function callImageGeneration(args: {
     result = { rawText: text };
   }
 
-  return { ok: response.ok, status: response.status, result, model: args.model };
+  return { ok: response.ok, status: response.status, result, model: args.model, aspectRatio: args.aspectRatio, label: args.label };
 }
 
 export async function POST(request: NextRequest) {
@@ -154,36 +156,43 @@ export async function POST(request: NextRequest) {
     const portraitUpload = await uploadImage(portrait, token, email);
     const propertyUpload = await uploadImage(propertyImage, token, email);
 
+    const prompt = flowStylePrompt(imagePrompt);
     const attempts = [];
-    const firstAttempt = await callImageGeneration({
-      token,
-      email,
-      prompt: imagePrompt,
-      model: 'nano-banana-2',
-      portraitId: portraitUpload.mediaGenerationId,
-      propertyId: propertyUpload.mediaGenerationId
-    });
-    attempts.push(firstAttempt);
+    const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; prompt: string; label: string }> = [
+      { model: 'nano-banana-2', aspectRatio: '9:16', prompt, label: 'nano-banana-2 9:16' },
+      { model: 'nano-banana-2', aspectRatio: 'auto', prompt, label: 'nano-banana-2 auto' },
+      { model: 'imagen-4', aspectRatio: '9:16', prompt, label: 'imagen-4 9:16' }
+    ];
 
-    let finalAttempt = firstAttempt;
+    let finalAttempt: Awaited<ReturnType<typeof callImageGeneration>> | null = null;
 
-    if (!firstAttempt.ok && [400, 500, 503].includes(firstAttempt.status)) {
-      const fallbackAttempt = await callImageGeneration({
+    for (const config of attemptConfigs) {
+      const attempt = await callImageGeneration({
         token,
-        email,
-        prompt: softenPrompt(imagePrompt),
-        model: 'imagen-4',
+        prompt: config.prompt,
+        model: config.model,
+        aspectRatio: config.aspectRatio,
         portraitId: portraitUpload.mediaGenerationId,
-        propertyId: propertyUpload.mediaGenerationId
+        propertyId: propertyUpload.mediaGenerationId,
+        label: config.label
       });
-      attempts.push(fallbackAttempt);
-      finalAttempt = fallbackAttempt.ok ? fallbackAttempt : firstAttempt;
+
+      attempts.push(attempt);
+      if (attempt.ok) {
+        finalAttempt = attempt;
+        break;
+      }
+
+      if (![400, 429, 500, 503].includes(attempt.status)) {
+        break;
+      }
     }
 
-    if (!finalAttempt.ok) {
+    if (!finalAttempt) {
+      const last = attempts[attempts.length - 1];
       return jsonError(
-        `Tạo ảnh ghép lỗi HTTP ${finalAttempt.status}. Đã thử nano-banana-2${attempts.length > 1 ? ' và fallback imagen-4' : ''}.`,
-        finalAttempt.status,
+        `Tạo ảnh ghép lỗi HTTP ${last?.status || 500}. Đã thử ${attempts.map((item) => item.label).join(', ')}.`,
+        last?.status || 500,
         { attempts, portraitUpload: portraitUpload.raw, propertyUpload: propertyUpload.raw }
       );
     }
@@ -204,6 +213,7 @@ export async function POST(request: NextRequest) {
       raw: {
         mergeStyle,
         modelUsed: finalAttempt.model,
+        aspectRatioUsed: finalAttempt.aspectRatio,
         attempts,
         portraitUpload: portraitUpload.raw,
         propertyUpload: propertyUpload.raw,
