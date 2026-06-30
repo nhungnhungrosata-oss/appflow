@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const USEAPI_ROOT = 'https://api.useapi.net/v1/google-flow';
-const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 function jsonError(message: string, status = 400, raw?: unknown) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (image.size > MAX_IMAGE_SIZE) {
-      return jsonError('Ảnh vượt quá 20MB. Vui lòng chọn ảnh nhẹ hơn.');
+      return jsonError('Ảnh vượt quá 4MB. Vui lòng nén ảnh nhẹ hơn rồi thử lại.');
     }
 
     if (!script) {
