@@ -46,7 +46,7 @@ export default function HomePage() {
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [script, setScript] = useState(defaultScript);
-  const [model, setModel] = useState('veo-3.1-fast');
+  const [model, setModel] = useState('veo-3.1-lite');
   const [submitting, setSubmitting] = useState(false);
   const [jobId, setJobId] = useState('');
   const [status, setStatus] = useState('Chưa tạo');
