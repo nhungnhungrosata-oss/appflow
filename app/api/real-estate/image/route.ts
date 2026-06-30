@@ -47,6 +47,18 @@ function extractGeneratedImage(result: any) {
   return { mediaGenerationId, imageUrl };
 }
 
+function softenPrompt(prompt: string) {
+  return prompt
+    .replace(/tuyệt đối/gi, '')
+    .replace(/không được/gi, 'tránh')
+    .replace(/nhận diện/gi, 'đặc điểm gương mặt')
+    .replace(/giữ nguyên tối đa/gi, 'giữ gần giống')
+    .replace(/Không/gi, 'Tránh')
+    .replace(/không/gi, 'tránh')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function uploadImage(file: File, token: string, email?: string) {
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     throw new Error('Ảnh phải là PNG, JPG hoặc WEBP.');
@@ -86,6 +98,45 @@ async function uploadImage(file: File, token: string, email?: string) {
   return { mediaGenerationId, raw: result };
 }
 
+async function callImageGeneration(args: {
+  token: string;
+  email?: string;
+  prompt: string;
+  model: 'nano-banana-2' | 'imagen-4';
+  portraitId: string;
+  propertyId: string;
+}) {
+  const body = {
+    email: args.email || undefined,
+    model: args.model,
+    prompt: args.prompt,
+    aspectRatio: '9:16',
+    count: 1,
+    reference_1: args.portraitId,
+    reference_2: args.propertyId,
+    captchaRetry: 5
+  };
+
+  const response = await fetch(`${USEAPI_ROOT}/images`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  const text = await response.text();
+  let result: any;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    result = { rawText: text };
+  }
+
+  return { ok: response.ok, status: response.status, result, model: args.model };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { token, email } = getEnv();
@@ -103,41 +154,47 @@ export async function POST(request: NextRequest) {
     const portraitUpload = await uploadImage(portrait, token, email);
     const propertyUpload = await uploadImage(propertyImage, token, email);
 
-    const body = {
-      email: email || undefined,
-      model: 'nano-banana-2',
+    const attempts = [];
+    const firstAttempt = await callImageGeneration({
+      token,
+      email,
       prompt: imagePrompt,
-      aspectRatio: '9:16',
-      count: 1,
-      reference_1: portraitUpload.mediaGenerationId,
-      reference_2: propertyUpload.mediaGenerationId,
-      captchaRetry: 5
-    };
-
-    const imageResponse = await fetch(`${USEAPI_ROOT}/images`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
+      model: 'nano-banana-2',
+      portraitId: portraitUpload.mediaGenerationId,
+      propertyId: propertyUpload.mediaGenerationId
     });
+    attempts.push(firstAttempt);
 
-    const imageText = await imageResponse.text();
-    let imageResult: any;
-    try {
-      imageResult = JSON.parse(imageText);
-    } catch {
-      imageResult = { rawText: imageText };
+    let finalAttempt = firstAttempt;
+
+    if (!firstAttempt.ok && [400, 500, 503].includes(firstAttempt.status)) {
+      const fallbackAttempt = await callImageGeneration({
+        token,
+        email,
+        prompt: softenPrompt(imagePrompt),
+        model: 'imagen-4',
+        portraitId: portraitUpload.mediaGenerationId,
+        propertyId: propertyUpload.mediaGenerationId
+      });
+      attempts.push(fallbackAttempt);
+      finalAttempt = fallbackAttempt.ok ? fallbackAttempt : firstAttempt;
     }
 
-    if (!imageResponse.ok) {
-      return jsonError(`Tạo ảnh ghép lỗi HTTP ${imageResponse.status}.`, imageResponse.status, imageResult);
+    if (!finalAttempt.ok) {
+      return jsonError(
+        `Tạo ảnh ghép lỗi HTTP ${finalAttempt.status}. Đã thử nano-banana-2${attempts.length > 1 ? ' và fallback imagen-4' : ''}.`,
+        finalAttempt.status,
+        { attempts, portraitUpload: portraitUpload.raw, propertyUpload: propertyUpload.raw }
+      );
     }
 
-    const generated = extractGeneratedImage(imageResult);
+    const generated = extractGeneratedImage(finalAttempt.result);
     if (!generated.mediaGenerationId) {
-      return jsonError('Tạo ảnh ghép xong nhưng không lấy được mediaGenerationId.', 502, imageResult);
+      return jsonError('Tạo ảnh ghép xong nhưng không lấy được mediaGenerationId.', 502, {
+        attempts,
+        portraitUpload: portraitUpload.raw,
+        propertyUpload: propertyUpload.raw
+      });
     }
 
     return NextResponse.json({
@@ -146,9 +203,11 @@ export async function POST(request: NextRequest) {
       mediaGenerationId: generated.mediaGenerationId,
       raw: {
         mergeStyle,
+        modelUsed: finalAttempt.model,
+        attempts,
         portraitUpload: portraitUpload.raw,
         propertyUpload: propertyUpload.raw,
-        imageResult
+        imageResult: finalAttempt.result
       }
     });
   } catch (error) {
