@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const USEAPI_ROOT = 'https://api.useapi.net/v1/google-flow';
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
