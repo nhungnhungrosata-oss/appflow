@@ -52,7 +52,7 @@ function extractGeneratedImage(result: any) {
 function flowStylePrompt(prompt: string) {
   return prompt
     .replace(/giữ nguyên tối đa/gi, 'keep the same general look of')
-    .replace(/nhận diện/gi, 'facial appearance')
+    .replace(/nhận diện/gi, 'appearance')
     .replace(/tuyệt đối/gi, '')
     .replace(/không được/gi, 'avoid')
     .replace(/Không/gi, 'Avoid')
@@ -114,8 +114,8 @@ async function callImageGeneration(args: {
     prompt: args.prompt,
     aspectRatio: args.aspectRatio,
     count: 1,
-    reference_1: args.portraitId,
-    reference_2: args.propertyId,
+    reference_1: args.propertyId,
+    reference_2: args.portraitId,
     captchaRetry: 5
   };
 
@@ -159,8 +159,8 @@ export async function POST(request: NextRequest) {
     const prompt = flowStylePrompt(imagePrompt);
     const attempts = [];
     const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; prompt: string; label: string }> = [
-      { model: 'nano-banana-2', aspectRatio: '9:16', prompt, label: 'nano-banana-2 9:16' },
       { model: 'nano-banana-2', aspectRatio: 'auto', prompt, label: 'nano-banana-2 auto' },
+      { model: 'nano-banana-2', aspectRatio: '9:16', prompt, label: 'nano-banana-2 9:16' },
       { model: 'imagen-4', aspectRatio: '9:16', prompt, label: 'imagen-4 9:16' }
     ];
 
@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
         mergeStyle,
         modelUsed: finalAttempt.model,
         aspectRatioUsed: finalAttempt.aspectRatio,
+        referenceOrder: 'reference_1=propertyImage, reference_2=portrait',
         attempts,
         portraitUpload: portraitUpload.raw,
         propertyUpload: propertyUpload.raw,
