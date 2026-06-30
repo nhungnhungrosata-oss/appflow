@@ -49,8 +49,10 @@ function extractGeneratedImage(result: any) {
   return { mediaGenerationId, imageUrl };
 }
 
-function flowStylePrompt(prompt: string) {
+function normalizePrompt(prompt: string) {
   return prompt
+    .replace(/@reference_2/gi, '@character_1')
+    .replace(/Use @character_1 as the person reference/gi, 'Use @character_1 as the advisor reference')
     .replace(/giữ nguyên tối đa/gi, 'keep the same general look of')
     .replace(/nhận diện/gi, 'appearance')
     .replace(/tuyệt đối/gi, '')
@@ -100,24 +102,59 @@ async function uploadImage(file: File, token: string, email?: string) {
   return { mediaGenerationId, raw: result };
 }
 
+async function createFlowCharacter(token: string, portraitId: string) {
+  const response = await fetch(`${USEAPI_ROOT}/characters`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      displayName: `Real Estate Advisor ${Date.now()}`,
+      imageReference_1: portraitId,
+      personalityNotes: 'Friendly professional real estate advisor.'
+    })
+  });
+
+  const text = await response.text();
+  let result: any;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    result = { rawText: text };
+  }
+
+  if (!response.ok || typeof result?.character !== 'string') {
+    return { ok: false, status: response.status, result, character: '' };
+  }
+
+  return { ok: true, status: response.status, result, character: result.character as string };
+}
+
 async function callImageGeneration(args: {
   token: string;
   prompt: string;
   model: ImageModel;
   aspectRatio: '9:16' | 'auto';
-  portraitId: string;
   propertyId: string;
+  characterRef?: string;
+  portraitId: string;
   label: string;
 }) {
-  const body = {
+  const body: Record<string, unknown> = {
     model: args.model,
     prompt: args.prompt,
     aspectRatio: args.aspectRatio,
     count: 1,
     reference_1: args.propertyId,
-    reference_2: args.portraitId,
     captchaRetry: 5
   };
+
+  if (args.characterRef) {
+    body.character_1 = args.characterRef;
+  } else {
+    body.reference_2 = args.portraitId;
+  }
 
   const response = await fetch(`${USEAPI_ROOT}/images`, {
     method: 'POST',
@@ -155,25 +192,30 @@ export async function POST(request: NextRequest) {
 
     const portraitUpload = await uploadImage(portrait, token, email);
     const propertyUpload = await uploadImage(propertyImage, token, email);
+    const characterAttempt = await createFlowCharacter(token, portraitUpload.mediaGenerationId);
 
-    const prompt = flowStylePrompt(imagePrompt);
+    const prompt = normalizePrompt(imagePrompt);
     const attempts = [];
-    const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; prompt: string; label: string }> = [
-      { model: 'nano-banana-2', aspectRatio: 'auto', prompt, label: 'nano-banana-2 auto' },
-      { model: 'nano-banana-2', aspectRatio: '9:16', prompt, label: 'nano-banana-2 9:16' },
-      { model: 'imagen-4', aspectRatio: '9:16', prompt, label: 'imagen-4 9:16' }
+    const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; label: string; useCharacter: boolean }> = [
+      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'character nano-banana-2 auto', useCharacter: true },
+      { model: 'nano-banana-2', aspectRatio: '9:16', label: 'character nano-banana-2 9:16', useCharacter: true },
+      { model: 'imagen-4', aspectRatio: '9:16', label: 'character imagen-4 9:16', useCharacter: true },
+      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'raw reference nano-banana-2 auto', useCharacter: false }
     ];
 
     let finalAttempt: Awaited<ReturnType<typeof callImageGeneration>> | null = null;
 
     for (const config of attemptConfigs) {
+      if (config.useCharacter && !characterAttempt.ok) continue;
+
       const attempt = await callImageGeneration({
         token,
-        prompt: config.prompt,
+        prompt,
         model: config.model,
         aspectRatio: config.aspectRatio,
-        portraitId: portraitUpload.mediaGenerationId,
         propertyId: propertyUpload.mediaGenerationId,
+        portraitId: portraitUpload.mediaGenerationId,
+        characterRef: config.useCharacter ? characterAttempt.character : undefined,
         label: config.label
       });
 
@@ -193,7 +235,7 @@ export async function POST(request: NextRequest) {
       return jsonError(
         `Tạo ảnh ghép lỗi HTTP ${last?.status || 500}. Đã thử ${attempts.map((item) => item.label).join(', ')}.`,
         last?.status || 500,
-        { attempts, portraitUpload: portraitUpload.raw, propertyUpload: propertyUpload.raw }
+        { attempts, characterAttempt, portraitUpload: portraitUpload.raw, propertyUpload: propertyUpload.raw }
       );
     }
 
@@ -201,6 +243,7 @@ export async function POST(request: NextRequest) {
     if (!generated.mediaGenerationId) {
       return jsonError('Tạo ảnh ghép xong nhưng không lấy được mediaGenerationId.', 502, {
         attempts,
+        characterAttempt,
         portraitUpload: portraitUpload.raw,
         propertyUpload: propertyUpload.raw
       });
@@ -214,8 +257,9 @@ export async function POST(request: NextRequest) {
         mergeStyle,
         modelUsed: finalAttempt.model,
         aspectRatioUsed: finalAttempt.aspectRatio,
-        referenceOrder: 'reference_1=propertyImage, reference_2=portrait',
+        referenceMode: characterAttempt.ok ? 'character_1 plus reference_1' : 'raw references',
         attempts,
+        characterAttempt,
         portraitUpload: portraitUpload.raw,
         propertyUpload: propertyUpload.raw,
         imageResult: finalAttempt.result
