@@ -28,7 +28,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Thiếu jobId.' }, { status: 400 });
   }
 
-  const response = await fetch(`${USEAPI_ROOT}/jobs/${encodeURIComponent(jobId)}`, {
+  // UseAPI job IDs contain characters like ':' and '@'. The official docs show the raw
+  // jobid directly in the path, so do not encode it again here.
+  const response = await fetch(`${USEAPI_ROOT}/jobs/${jobId}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store'
   });
@@ -42,7 +44,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (!response.ok) {
-    return NextResponse.json({ ok: false, error: `Kiểm tra job lỗi HTTP ${response.status}.`, raw: job }, { status: response.status });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Kiểm tra job lỗi HTTP ${response.status}: ${job?.error || job?.message || 'Không rõ lỗi.'}`,
+        raw: job
+      },
+      { status: response.status }
+    );
   }
 
   const { videoUrl, mediaGenerationId } = getVideoFromJob(job);
