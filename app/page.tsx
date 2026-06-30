@@ -207,8 +207,10 @@ export default function HomePage() {
               <select id="model" value={model} onChange={(event) => setModel(event.target.value)}>
                 <option value="veo-3.1-fast">veo-3.1-fast</option>
                 <option value="veo-3.1-lite">veo-3.1-lite</option>
+                <option value="veo-3.1-lite-low-priority">veo-3.1-lite-low-priority</option>
                 <option value="veo-3.1-quality">veo-3.1-quality</option>
               </select>
+              <div className="helper">Low priority phù hợp khi muốn tiết kiệm credit, nhưng có thể xử lý chậm hơn.</div>
             </div>
 
             <div className="field">
