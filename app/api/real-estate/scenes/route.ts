@@ -71,27 +71,25 @@ function buildNarration(index: number, total: number, infoPart: string) {
 function buildImagePrompt(style: string, sceneNote: string) {
   if (style === 'Selfie') {
     return [
-      'Tạo ảnh bất động sản dọc 9:16 theo phong cách selfie chân thực.',
-      'Dùng @reference_1 làm nhân vật chính và @reference_2 làm bối cảnh bất động sản gốc.',
-      'Giữ nguyên tối đa khuôn mặt, thần thái, nhận diện, độ tuổi, giới tính, màu da và kiểu tóc của nhân vật.',
-      'Giữ nguyên toàn bộ bất động sản trong ảnh gốc, gồm kiến trúc, bố cục, màu sắc, ánh sáng, chi tiết và không gian.',
-      'Nhân vật xuất hiện khoảng 3/4 thân, gương mặt rõ nét, biểu cảm tự nhiên, mỉm cười nhẹ.',
-      'Góc máy như chính nhân vật đang tự cầm điện thoại chụp cùng căn nhà.',
-      'Ảnh chân thực như ảnh điện thoại ngoài đời, không biến dạng mặt, không đổi chi tiết căn nhà, không thêm vật thể lạ, không watermark, không chữ.',
-      `Ngữ cảnh cảnh này: ${sceneNote}`
+      'Create a realistic vertical 9:16 smartphone selfie photo for real estate marketing.',
+      'Use @reference_1 as the person reference and @reference_2 as the real estate background reference.',
+      'The person is in the foreground, about three-quarter body, smiling naturally, holding the phone like a real selfie.',
+      'The property remains recognizable in the background with natural architecture, color, lighting and layout.',
+      'Real phone photo style, natural daylight, friendly real estate consultant mood.',
+      'No text overlay, no watermark, no logo, no extra people, no strange objects.',
+      `Scene context: ${sceneNote}`
     ].join(' ');
   }
 
   return [
-    'Tạo ảnh bất động sản dọc 9:16 theo phong cách tự nhiên như nhân viên môi giới đang giới thiệu căn nhà.',
-    'Dùng @reference_1 làm nhân vật chính và @reference_2 làm bối cảnh bất động sản gốc.',
-    'Giữ nguyên tối đa khuôn mặt, thần thái, nhận diện, độ tuổi, giới tính, màu da và kiểu tóc của nhân vật.',
-    'Giữ nguyên mặt tiền, kiến trúc, bố cục, màu sơn, chi tiết ngoại thất, không gian và ánh sáng của bất động sản.',
-    'Nhân vật xuất hiện full body toàn thân, đứng trọn vẹn trong khung hình, không cắt đầu, không cắt chân, tỷ lệ cơ thể cân đối.',
-    'Dáng đứng tự nhiên, chuyên nghiệp, thân thiện, có thể đưa tay nhẹ về phía căn nhà như đang giới thiệu.',
-    'Góc chụp như được người khác chụp bằng điện thoại hoặc ảnh quảng bá bất động sản đời thường.',
-    'Không biến dạng gương mặt, không thay đổi chi tiết căn nhà, không thêm vật thể lạ, không studio, không watermark, không chữ.',
-    `Ngữ cảnh cảnh này: ${sceneNote}`
+    'Create a realistic vertical 9:16 real estate presentation photo.',
+    'Use @reference_1 as the person reference and @reference_2 as the real estate location reference.',
+    'The person appears as a friendly real estate consultant standing naturally in the scene.',
+    'Full body visible, balanced body proportion, not cropped head or feet, relaxed professional pose.',
+    'The property remains recognizable with its architecture, layout, color, lighting and real details.',
+    'Real phone photo style, natural daylight, not studio, professional but everyday real estate marketing look.',
+    'No text overlay, no watermark, no logo, no extra people, no strange objects.',
+    `Scene context: ${sceneNote}`
   ].join(' ');
 }
 
