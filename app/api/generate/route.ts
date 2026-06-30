@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
 
     const image = formData.get('image');
     const script = String(formData.get('script') || '').trim();
-    const requestedModel = String(formData.get('model') || 'veo-3.1-fast').trim();
+    const requestedModel = String(formData.get('model') || 'veo-3.1-lite').trim();
     const model = ['veo-3.1-fast', 'veo-3.1-lite', 'veo-3.1-quality'].includes(requestedModel)
       ? requestedModel
-      : 'veo-3.1-fast';
+      : 'veo-3.1-lite';
 
     if (!image || typeof image === 'string') {
       return jsonError('Vui lòng upload 1 ảnh nhân vật.');
