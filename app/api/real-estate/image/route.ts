@@ -49,10 +49,8 @@ function extractGeneratedImage(result: any) {
   return { mediaGenerationId, imageUrl };
 }
 
-function normalizePrompt(prompt: string) {
+function normalizeCommonPrompt(prompt: string) {
   return prompt
-    .replace(/@reference_2/gi, '@character_1')
-    .replace(/Use @character_1 as the person reference/gi, 'Use @character_1 as the advisor reference')
     .replace(/giữ nguyên tối đa/gi, 'keep the same general look of')
     .replace(/nhận diện/gi, 'appearance')
     .replace(/tuyệt đối/gi, '')
@@ -60,6 +58,19 @@ function normalizePrompt(prompt: string) {
     .replace(/Không/gi, 'Avoid')
     .replace(/không/gi, 'avoid')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function makeCharacterPrompt(prompt: string) {
+  return normalizeCommonPrompt(prompt)
+    .replace(/@reference_2/gi, '@character_1')
+    .replace(/Use @character_1 as the person reference/gi, 'Use @character_1 as the advisor reference')
+    .trim();
+}
+
+function makeRawReferencePrompt(prompt: string) {
+  return normalizeCommonPrompt(prompt)
+    .replace(/@character_1/gi, '@reference_2')
     .trim();
 }
 
@@ -173,7 +184,7 @@ async function callImageGeneration(args: {
     result = { rawText: text };
   }
 
-  return { ok: response.ok, status: response.status, result, model: args.model, aspectRatio: args.aspectRatio, label: args.label };
+  return { ok: response.ok, status: response.status, result, model: args.model, aspectRatio: args.aspectRatio, label: args.label, sentBody: body };
 }
 
 export async function POST(request: NextRequest) {
@@ -194,13 +205,16 @@ export async function POST(request: NextRequest) {
     const propertyUpload = await uploadImage(propertyImage, token, email);
     const characterAttempt = await createFlowCharacter(token, portraitUpload.mediaGenerationId);
 
-    const prompt = normalizePrompt(imagePrompt);
+    const characterPrompt = makeCharacterPrompt(imagePrompt);
+    const rawPrompt = makeRawReferencePrompt(imagePrompt);
     const attempts = [];
-    const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; label: string; useCharacter: boolean }> = [
-      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'character nano-banana-2 auto', useCharacter: true },
-      { model: 'nano-banana-2', aspectRatio: '9:16', label: 'character nano-banana-2 9:16', useCharacter: true },
-      { model: 'imagen-4', aspectRatio: '9:16', label: 'character imagen-4 9:16', useCharacter: true },
-      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'raw reference nano-banana-2 auto', useCharacter: false }
+    const attemptConfigs: Array<{ model: ImageModel; aspectRatio: '9:16' | 'auto'; label: string; useCharacter: boolean; prompt: string }> = [
+      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'character nano-banana-2 auto', useCharacter: true, prompt: characterPrompt },
+      { model: 'nano-banana-2', aspectRatio: '9:16', label: 'character nano-banana-2 9:16', useCharacter: true, prompt: characterPrompt },
+      { model: 'imagen-4', aspectRatio: '9:16', label: 'character imagen-4 9:16', useCharacter: true, prompt: characterPrompt },
+      { model: 'nano-banana-2', aspectRatio: 'auto', label: 'raw reference nano-banana-2 auto', useCharacter: false, prompt: rawPrompt },
+      { model: 'nano-banana-2', aspectRatio: '9:16', label: 'raw reference nano-banana-2 9:16', useCharacter: false, prompt: rawPrompt },
+      { model: 'imagen-4', aspectRatio: '9:16', label: 'raw reference imagen-4 9:16', useCharacter: false, prompt: rawPrompt }
     ];
 
     let finalAttempt: Awaited<ReturnType<typeof callImageGeneration>> | null = null;
@@ -210,7 +224,7 @@ export async function POST(request: NextRequest) {
 
       const attempt = await callImageGeneration({
         token,
-        prompt,
+        prompt: config.prompt,
         model: config.model,
         aspectRatio: config.aspectRatio,
         propertyId: propertyUpload.mediaGenerationId,
@@ -257,7 +271,7 @@ export async function POST(request: NextRequest) {
         mergeStyle,
         modelUsed: finalAttempt.model,
         aspectRatioUsed: finalAttempt.aspectRatio,
-        referenceMode: characterAttempt.ok ? 'character_1 plus reference_1' : 'raw references',
+        referenceMode: finalAttempt.label,
         attempts,
         characterAttempt,
         portraitUpload: portraitUpload.raw,
