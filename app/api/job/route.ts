@@ -17,6 +17,37 @@ function getVideoFromJob(job: any) {
   };
 }
 
+function getDetailedJobError(job: any) {
+  const messages = new Set<string>();
+  const add = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) messages.add(value.trim());
+  };
+
+  add(job?.error);
+  add(job?.errorDetails);
+  add(job?.response?.error?.message);
+  add(job?.response?.error?.status);
+  add(job?.response?.message);
+
+  const media = job?.response?.media || job?.media || [];
+  if (Array.isArray(media)) {
+    for (const item of media) {
+      add(item?.error);
+      add(item?.errorDetails);
+      add(item?.mediaMetadata?.mediaStatus?.error?.message);
+      add(item?.mediaMetadata?.mediaStatus?.error?.code ? `Google Flow error code: ${item.mediaMetadata.mediaStatus.error.code}` : '');
+      add(item?.mediaMetadata?.mediaStatus?.mediaGenerationStatus);
+    }
+  }
+
+  const attempts = job?.response?.captcha?.attempts;
+  if (Array.isArray(attempts)) {
+    for (const attempt of attempts) add(attempt?.error);
+  }
+
+  return Array.from(messages).join(' | ');
+}
+
 export async function GET(request: NextRequest) {
   const token = process.env.USEAPI_TOKEN?.trim();
   if (!token) {
@@ -28,8 +59,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Thiếu jobId.' }, { status: 400 });
   }
 
-  // UseAPI job IDs contain characters like ':' and '@'. The official docs show the raw
-  // jobid directly in the path, so do not encode it again here.
   const response = await fetch(`${USEAPI_ROOT}/jobs/${jobId}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store'
@@ -55,13 +84,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { videoUrl, mediaGenerationId } = getVideoFromJob(job);
+  const detailedError = getDetailedJobError(job);
 
   return NextResponse.json({
     ok: true,
     status: job.status || 'unknown',
     videoUrl,
     mediaGenerationId,
-    error: job.error || job.errorDetails || '',
+    error: detailedError,
     raw: job
   });
 }
