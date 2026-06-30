@@ -71,23 +71,24 @@ function buildNarration(index: number, total: number, infoPart: string) {
 function buildImagePrompt(style: string, sceneNote: string) {
   if (style === 'Selfie') {
     return [
-      'Create a realistic vertical 9:16 smartphone selfie photo for real estate marketing.',
-      'Use @reference_1 as the person reference and @reference_2 as the real estate background reference.',
-      'The person is in the foreground, about three-quarter body, smiling naturally, holding the phone like a real selfie.',
-      'The property remains recognizable in the background with natural architecture, color, lighting and layout.',
-      'Real phone photo style, natural daylight, friendly real estate consultant mood.',
+      'Create a realistic smartphone selfie photo for real estate marketing.',
+      'Use @reference_1 as the real estate background and keep the property recognizable.',
+      'Use @reference_2 as the person reference in the foreground.',
+      'The person appears about three-quarter body, smiling naturally, holding the phone like a real selfie.',
+      'Keep the property architecture, color, lighting and layout natural in the background.',
+      'Real phone photo style, natural daylight, friendly real estate consultant mood, vertical social video cover look.',
       'No text overlay, no watermark, no logo, no extra people, no strange objects.',
       `Scene context: ${sceneNote}`
     ].join(' ');
   }
 
   return [
-    'Create a realistic vertical 9:16 real estate presentation photo.',
-    'Use @reference_1 as the person reference and @reference_2 as the real estate location reference.',
-    'The person appears as a friendly real estate consultant standing naturally in the scene.',
-    'Full body visible, balanced body proportion, not cropped head or feet, relaxed professional pose.',
-    'The property remains recognizable with its architecture, layout, color, lighting and real details.',
-    'Real phone photo style, natural daylight, not studio, professional but everyday real estate marketing look.',
+    'Create a realistic real estate presentation photo.',
+    'Use @reference_1 as the real estate location and keep the property recognizable.',
+    'Use @reference_2 as the person reference standing naturally in the scene.',
+    'The person appears as a friendly real estate consultant, full body visible, balanced proportion, not cropped head or feet.',
+    'Keep the property architecture, layout, color, lighting and real details.',
+    'Real phone photo style, natural daylight, not studio, professional everyday real estate marketing look, vertical social video cover look.',
     'No text overlay, no watermark, no logo, no extra people, no strange objects.',
     `Scene context: ${sceneNote}`
   ].join(' ');
