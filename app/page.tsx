@@ -20,6 +20,27 @@ type JobResponse = {
 };
 
 const defaultScript = 'Xin chào mọi người, hôm nay tôi sẽ chia sẻ một mẹo sức khỏe đơn giản, dễ áp dụng mỗi ngày.';
+const MAX_CLIENT_IMAGE_SIZE = 4 * 1024 * 1024;
+
+async function readResponse<T>(res: Response): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text || '{}') as T;
+  }
+
+  return {
+    ok: false,
+    message: text || `Request failed with HTTP ${res.status}`,
+    error: text || `Request failed with HTTP ${res.status}`,
+    raw: { rawText: text, status: res.status, statusText: res.statusText }
+  } as T;
+}
+
+function formatFileSize(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
+}
 
 export default function HomePage() {
   const [image, setImage] = useState<File | null>(null);
@@ -54,7 +75,7 @@ export default function HomePage() {
 
   async function pollJob(id: string) {
     const res = await fetch(`/api/job?jobId=${encodeURIComponent(id)}`, { cache: 'no-store' });
-    const data = (await res.json()) as JobResponse;
+    const data = await readResponse<JobResponse>(res);
     setRaw(data.raw ?? data);
 
     if (!res.ok || !data.ok) {
@@ -86,6 +107,20 @@ export default function HomePage() {
     pollingRef.current = window.setInterval(() => pollJob(id), 5000);
   }
 
+  function handleImageChange(file: File | null) {
+    setError('');
+    setImage(null);
+
+    if (!file) return;
+
+    if (file.size > MAX_CLIENT_IMAGE_SIZE) {
+      setError(`Ảnh đang là ${formatFileSize(file.size)}. Vui lòng nén ảnh xuống dưới 4MB trước khi upload.`);
+      return;
+    }
+
+    setImage(file);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!image) return;
@@ -108,7 +143,7 @@ export default function HomePage() {
         body: formData
       });
 
-      const data = (await res.json()) as GenerateResponse;
+      const data = await readResponse<GenerateResponse>(res);
       setRaw(data.raw ?? data);
 
       if (!res.ok || !data.ok || !data.jobId) {
@@ -144,9 +179,9 @@ export default function HomePage() {
               id="image"
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+              onChange={(event) => handleImageChange(event.target.files?.[0] ?? null)}
             />
-            <div className="helper">Hỗ trợ PNG/JPG/WEBP, tối đa 20MB. Nên dùng ảnh rõ mặt, ánh sáng tốt, 9:16 hoặc chân dung.</div>
+            <div className="helper">Hỗ trợ PNG/JPG/WEBP, tối đa 4MB. Nên dùng ảnh rõ mặt, ánh sáng tốt, 9:16 hoặc chân dung.</div>
             {previewUrl && (
               <div className="preview">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
