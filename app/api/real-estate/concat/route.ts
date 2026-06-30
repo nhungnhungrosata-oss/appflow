@@ -6,6 +6,10 @@ export const maxDuration = 300;
 
 const USEAPI_ROOT = 'https://api.useapi.net/v1/google-flow';
 
+type ConcatRequestBody = {
+  mediaGenerationIds?: unknown;
+};
+
 function jsonError(message: string, status = 400, raw?: unknown) {
   return NextResponse.json({ ok: false, message, raw }, { status });
 }
@@ -15,9 +19,11 @@ export async function POST(request: NextRequest) {
     const token = process.env.USEAPI_TOKEN?.trim();
     if (!token) throw new Error('Thiếu USEAPI_TOKEN trong Environment Variables.');
 
-    const body = await request.json();
-    const ids = Array.isArray(body.mediaGenerationIds)
-      ? body.mediaGenerationIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)
+    const body = (await request.json()) as ConcatRequestBody;
+    const ids: string[] = Array.isArray(body.mediaGenerationIds)
+      ? body.mediaGenerationIds
+          .map((id: unknown) => String(id || '').trim())
+          .filter((id: string) => Boolean(id))
       : [];
 
     if (ids.length < 2) return jsonError('Cần ít nhất 2 video cảnh để ghép.');
@@ -30,7 +36,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        media: ids.map((mediaGenerationId) => ({ mediaGenerationId }))
+        media: ids.map((mediaGenerationId: string) => ({ mediaGenerationId }))
       })
     });
 
